@@ -140,8 +140,21 @@ RUN ASSET_NAME=$(basename $(curl -LIs -o /dev/null -w %{url_effective} https://g
 	make && \
 	make install
 
+FROM common-deps as build-db_migrator
 
+WORKDIR /tmp/db_migrator
+RUN ASSET_NAME=$(basename $(curl -LIs -o /dev/null -w %{url_effective} https://github.com/cybertec-postgresql/db_migrator/releases/latest)) && \
+	curl --fail -L "https://github.com/cybertec-postgresql/db_migrator/archive/${ASSET_NAME}.tar.gz" | tar -zx --strip-components=1 -C . && \
+	make && \
+	make install
 
+FROM common-deps as build-ora_migrator
+
+WORKDIR /tmp/ora_migrator
+RUN ASSET_NAME=$(basename $(curl -LIs -o /dev/null -w %{url_effective} https://github.com/cybertec-postgresql/ora_migrator/releases/latest)) && \
+	curl --fail -L "https://github.com/cybertec-postgresql/ora_migrator/archive/${ASSET_NAME}.tar.gz" | tar -zx --strip-components=1 -C . && \
+	make && \
+	make install
 
 FROM base-image as final-stage
 
@@ -279,6 +292,14 @@ COPY --from=build-oracle_fdw \
 	/usr/lib/postgresql/$PG_MAJOR/lib/oracle_fdw.so \
 	/usr/lib/postgresql/$PG_MAJOR/lib/oracle_fdw.so
 COPY --from=build-oracle_fdw  ${ORACLE_HOME}  ${ORACLE_HOME}
+
+COPY --from=build-db_migrator \
+	/usr/share/postgresql/$PG_MAJOR/extension/db_migrator* \
+	/usr/share/postgresql/$PG_MAJOR/extension/
+
+COPY --from=build-ora_migrator \
+	/usr/share/postgresql/$PG_MAJOR/extension/ora_migrator* \
+	/usr/share/postgresql/$PG_MAJOR/extension/
 
 RUN echo ${ORACLE_HOME} > /etc/ld.so.conf.d/oracle_instantclient.conf && \
 	ldconfig
